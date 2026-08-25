@@ -47,9 +47,11 @@ import { Ground } from './ground';
 import { Clouds } from './clouds';
 import { Lamp } from './lamp';
 import { Yard, KALAM_RADIUS } from './yard';
+import { Palms } from './palms';
 import { Director } from './camera';
 
-type Stage = { at: number; label: string; run: () => void };
+/** A build step. `run` may be async — the palms have 11 MB to fetch. */
+type Stage = { at: number; label: string; run: () => void | Promise<void> };
 
 /** Hand the browser a frame, so a progress bar can paint between stages. */
 const yieldToBrowser = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -69,6 +71,7 @@ export class World implements WorldAPI {
   private clouds!: Clouds;
   private lamp!: Lamp;
   private yard!: Yard;
+  private palms: Palms | null = null;
 
   /** Latest pointer position in NDC, and whether it is worth raycasting. */
   private readonly pointer = new Vector2();
@@ -122,13 +125,21 @@ export class World implements WorldAPI {
    * can show on the veil.
    */
   async build(onProgress?: (fraction: number, label: string) => void): Promise<void> {
+    // Kick the model's 11 MB off NOW, before any of the synchronous work below,
+    // so the download overlaps with building the ground instead of following it.
+    // It is awaited as the last stage.
+    const palms = Palms.plant(this.scene, 22);
+
     const stages: Stage[] = [
       {
         at: 0.14,
         label: 'raising the sky',
         run: () => {
           const sky = new Sky(this.scene);
-          this.daylight = new Daylight(this.scene, sky, 22);
+          // The shadow camera has to reach past the courtyard now: the nearest
+          // palms stand ~28 m out, and a low sun throwing their shadows across
+          // the swept earth is the best thing that happens at dusk.
+          this.daylight = new Daylight(this.scene, sky, 44);
         },
       },
       {
@@ -157,10 +168,17 @@ export class World implements WorldAPI {
         },
       },
       {
-        at: 1,
+        at: 0.9,
         label: 'sweeping the ground',
         run: () => {
           this.yard = new Yard(this.scene);
+        },
+      },
+      {
+        at: 1,
+        label: 'growing the palms',
+        run: async () => {
+          this.palms = await palms;
         },
       },
     ];
@@ -168,7 +186,7 @@ export class World implements WorldAPI {
     for (const stage of stages) {
       onProgress?.(stage.at - 0.07, stage.label);
       await yieldToBrowser();
-      stage.run();
+      await stage.run();
       onProgress?.(stage.at, stage.label);
     }
 
@@ -332,6 +350,7 @@ export class World implements WorldAPI {
     this.stop();
     window.removeEventListener('resize', this.onResize);
     this.director.dispose();
+    this.palms?.dispose();
     this.yard.dispose();
     this.lamp.dispose();
     this.clouds.dispose();

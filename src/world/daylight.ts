@@ -135,10 +135,12 @@ export class Daylight {
 
     this.sun = new DirectionalLight(0xffffff, 3);
     this.sun.castShadow = true;
-    // One shadow map has to cover the part of the yard a visitor can actually
-    // see detail in. Wider than this and the palms' shadows turn to mush;
-    // narrower and you watch shadows pop in as you orbit.
-    const reach = Math.min(yardRadius * 0.75, 150);
+    // One shadow map, and a real trade. It has to cover the courtyard AND the
+    // nearest palms, because their long shadows falling across the swept earth
+    // are most of what the light does here. Widening it costs sharpness
+    // everywhere: at 2048², a 40 m reach is ~4 cm per texel, which is fine on a
+    // 9 m disc and would not be if this went much further.
+    const reach = Math.min(yardRadius, 150);
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.camera.left = -reach;
     this.sun.shadow.camera.right = reach;
