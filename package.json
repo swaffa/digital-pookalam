@@ -1,0 +1,21 @@
+{
+  "name": "digital-pookalam",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A shared digital മുറ്റം. Three.js workshop starter — the world is built, the modules are yours.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "three": "^0.166.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.166.0",
+    "typescript": "~5.5.4",
+    "vite": "^5.4.0"
+  }
+}

@@ -1,0 +1,204 @@
+/*
+ * Scaffolding. M5 owns every pixel here — read docs/briefs/m5-ui.md before
+ * anything becomes permanent.
+ *
+ * One deliberate choice worth knowing: this commits to a single dark palette
+ * rather than following the system theme. The courtyard behind it is lit by a
+ * sun and a brass lamp, and light-grey chrome over a dusk sky reads as two
+ * applications stacked. The dark ground IS the design.
+ */
+
+:root {
+  --ground: #0d1418;
+  --panel: rgb(14 22 27 / 70%);
+  --hairline: rgb(247 241 230 / 12%);
+
+  --chalk: #f4efe4;
+  --chalk-dim: #a8a49b;
+  --marigold: #f2a413;
+
+  --shadow: 0 10px 34px rgb(6 10 12 / 45%);
+  /* The platform font first: it already ships the optical sizing, tracking
+     tables and legibility tuning a downloaded face would only approximate.
+     Noto Sans Malayalam covers what system-ui does not. */
+  --font: system-ui, -apple-system, 'Segoe UI', 'Noto Sans Malayalam', sans-serif;
+
+  --edge: clamp(0.9rem, 3vw, 1.5rem);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--ground);
+  color: var(--chalk);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+#app, #app canvas {
+  position: fixed;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+/* Chrome layer: click-through by default, each child opts back in. */
+#chrome {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+input { font: inherit; }
+
+:focus-visible {
+  outline: 2px solid var(--marigold);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.panel {
+  background: var(--panel);
+  backdrop-filter: blur(14px) saturate(150%);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+/* ══ THE VEIL ════════════════════════════════════════════════════════════ */
+
+#veil {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 1.1rem;
+  background: radial-gradient(125% 90% at 50% 32%, #1a2b26, #0d1418 70%);
+  transition: opacity 900ms ease;
+}
+#veil.gone { opacity: 0; pointer-events: none; }
+#veil h1 {
+  margin: 0;
+  /* Large text wants negative tracking and tight leading — letters read too
+     far apart as they grow. */
+  font-size: clamp(1.6rem, 6vw, 2.4rem);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.018em;
+}
+#veil .bar {
+  width: min(240px, 56vw);
+  height: 2px;
+  border-radius: 2px;
+  background: rgb(247 241 230 / 16%);
+  overflow: hidden;
+}
+#veil .bar i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--marigold);
+  transition: width 220ms ease;
+}
+#veil small {
+  font-size: 0.8125rem;
+  letter-spacing: 0.002em;
+  color: var(--chalk-dim);
+}
+
+/* ══ THE IN-WORLD CHROME ═════════════════════════════════════════════════ */
+
+#world-ui {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 520ms ease;
+}
+#world-ui.on { opacity: 1; }
+#world-ui > * { pointer-events: auto; }
+
+#sun {
+  position: absolute;
+  right: max(var(--edge), env(safe-area-inset-right));
+  bottom: max(var(--edge), env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.6rem 0.8rem;
+}
+#sun label {
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+}
+#sun input[type='range'] {
+  width: 9rem;
+  accent-color: var(--marigold);
+}
+
+#hint {
+  position: absolute;
+  left: 50%;
+  bottom: max(var(--edge), env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  padding: 0.42rem 0.85rem;
+  border-radius: 999px;
+  background: var(--panel);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--hairline);
+  font-size: 0.75rem;
+  color: var(--chalk-dim);
+  white-space: nowrap;
+  pointer-events: none;
+}
+#hint kbd {
+  font: inherit;
+  padding: 0.05rem 0.3rem;
+  margin: 0 0.05rem;
+  border-radius: 4px;
+  background: rgb(247 241 230 / 14%);
+  color: var(--chalk);
+}
+
+#say {
+  position: absolute;
+  left: 50%;
+  bottom: calc(max(var(--edge), env(safe-area-inset-bottom)) + 2.7rem);
+  transform: translateX(-50%);
+  max-width: min(30rem, 88vw);
+  padding: 0.55rem 0.9rem;
+  border-radius: 11px;
+  background: rgb(14 22 27 / 90%);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--hairline);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+#say.on { opacity: 1; }
+
+@media (max-width: 560px) {
+  #hint { display: none; }
+  #sun input[type='range'] { width: 7.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
