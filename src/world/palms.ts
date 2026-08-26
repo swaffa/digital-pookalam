@@ -54,16 +54,20 @@ import {
   Color,
   InstancedMesh,
   Mesh,
+  MeshDepthMaterial,
   Object3D,
+  RGBADepthPacking,
   Vector3,
   type Material,
   type Matrix4,
   type Scene,
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import type { MeshStandardMaterial, Texture } from 'three';
 import { bell, makeRng, range } from '../util/rng';
 import { relight } from './gltfnormals';
 import { terrainHeight } from './terrain';
+import { applySway } from './wind';
 
 const MODEL_URL = '/models/coconut-palm.glb';
 
@@ -93,6 +97,48 @@ const TIERS: Tier[] = [
 interface Part {
   geometry: Mesh['geometry'];
   material: Material;
+}
+
+/** sRGB byte → linear float. Averaging has to happen in linear or the result
+ *  is skewed bright, and the whole point here is to get a colour right. */
+function toLinear(byte: number): number {
+  const c = byte / 255;
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+}
+
+/**
+ * The mean colour of a texture's opaque pixels, in linear space.
+ *
+ * Used so the grass can be tuned against the canopy it grows under instead of
+ * against a guess. Transparent pixels are skipped: in an alpha-masked foliage
+ * atlas most of the image is empty, and it is usually black, so including it
+ * would drag the average to nearly nothing.
+ */
+function meanOpaqueColour(map: Texture, alphaCutoff: number): Color | null {
+  const image = map.image as HTMLImageElement | ImageBitmap | undefined;
+  if (!image?.width) return null;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = image.width;
+  canvas.height = image.height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return null;
+  ctx.drawImage(image as CanvasImageSource, 0, 0);
+
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let n = 0;
+  const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const cutoff = Math.max(alphaCutoff, 0.5) * 255;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < cutoff) continue;
+    r += toLinear(data[i]);
+    g += toLinear(data[i + 1]);
+    b += toLinear(data[i + 2]);
+    n++;
+  }
+  return n ? new Color(r / n, g / n, b / n) : null;
 }
 
 /** Where a palm stands, for anything that wants to grow around it. */
@@ -156,8 +202,28 @@ export class Palms {
   private readonly meshes: InstancedMesh[] = [];
   /** Where the NEAR palms stand, so grass can grow at their feet. */
   readonly roots: Root[] = [];
+  /**
+   * The average colour of the canopy, sampled from the frond texture.
+   *
+   * Exposed because the grass model arrived a completely different green — much
+   * yellower and with far more contrast between its three tones — and two
+   * plants in one courtyard disagreeing about what green is reads as two
+   * different scenes. `grass.ts` tunes itself to this rather than to a hex
+   * value somebody eyeballed.
+   */
+  readonly canopy: Color | null;
 
   private constructor(scene: Scene, parts: Part[], yardRadius: number) {
+    // The fronds are the alpha-masked part; failing that, the biggest one.
+    const foliage =
+      parts.find((p) => (p.material as MeshStandardMaterial).alphaTest > 0) ??
+      parts.reduce((a, b) => ((a.geometry.getAttribute('position')?.count ?? 0) >
+        (b.geometry.getAttribute('position')?.count ?? 0) ? a : b));
+    const map = (foliage.material as MeshStandardMaterial).map;
+    this.canopy = map
+      ? meanOpaqueColour(map, (foliage.material as MeshStandardMaterial).alphaTest)
+      : null;
+
     const rng = makeRng(0x2c17);
     const dummy = new Object3D();
     const tint = new Color();
@@ -236,7 +302,32 @@ export class Palms {
         this.meshes.push(mesh);
       }
     }
+
+    /*
+     * Bend in the wind. Patched once per material rather than per mesh — the two
+     * tiers share the same five materials, so patching per mesh would install
+     * the sway twice and displace everything double.
+     *
+     * The shadow pass uses its own depth material, which would not sway and
+     * would leave every palm's shadow standing still under a moving tree. So the
+     * same patch goes on a depth material and is handed to the shadow-casting
+     * meshes as `customDepthMaterial`.
+     */
+    const swayed = new Set<Material>();
+    for (const part of parts) {
+      if (swayed.has(part.material)) continue;
+      swayed.add(part.material);
+      applySway(part.material, { amplitude: 0.022, speed: 0.85, flutter: 0.012 });
+    }
+    const depth = new MeshDepthMaterial({ depthPacking: RGBADepthPacking });
+    applySway(depth, { amplitude: 0.022, speed: 0.85, flutter: 0.012 });
+    this.depthMaterial = depth;
+    for (const mesh of this.meshes) {
+      if (mesh.castShadow) mesh.customDepthMaterial = depth;
+    }
   }
+
+  private readonly depthMaterial: MeshDepthMaterial;
 
   /**
    * Load the model and plant both tiers.
@@ -265,6 +356,7 @@ export class Palms {
       mesh.geometry.dispose();
       mesh.dispose();
     }
+    this.depthMaterial.dispose();
     this.meshes.length = 0;
   }
 }

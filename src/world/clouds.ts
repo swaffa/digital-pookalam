@@ -158,9 +158,8 @@ export class Clouds {
   private readonly layers: Layer[] = [];
   private readonly texture = puffTexture();
   private readonly dummy = new Object3D();
-  /** Multiplies every deck's wind. Ramped up during a descent so the sky
-   *  streaks past instead of hanging there. */
-  private windBoost = 1;
+  /** This frame's gust, from the shared wind. */
+  private gust = 1;
   /** Time-of-day opacity, before the near-camera boost. */
   private readonly baseOpacity: number[] = [];
 
@@ -260,14 +259,16 @@ export class Clouds {
     });
   }
 
-  /** 1 is still air. The descent ramps this up so the sky streaks past. */
-  setWindBoost(multiplier: number): void {
-    this.windBoost = Math.max(0, multiplier);
-  }
-
-  update(dt: number, cameraY: number): void {
+  /**
+   * `gust` comes from `wind.ts`, the same number the palms are leaning on — so
+   * when the air picks up, the fronds and the sky pick up together. Three
+   * animations that agree read as weather; three that don't read as three
+   * animations.
+   */
+  update(dt: number, cameraY: number, gust = 1): void {
+    this.gust = gust;
     this.layers.forEach((layer, i) => {
-      layer.drift += layer.spec.wind * this.windBoost * dt;
+      layer.drift += layer.spec.wind * this.gust * dt;
       this.write(layer);
 
       // Density near the camera. Inside the deck's band the puffs thicken to

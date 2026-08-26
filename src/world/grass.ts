@@ -45,11 +45,13 @@ import {
   type MeshStandardMaterial as StandardMaterial,
   type Scene,
 } from 'three';
+import { Color } from 'three';
 import { bell, makeRng, range } from '../util/rng';
 import { relight } from './gltfnormals';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Root } from './palms';
 import { terrainHeight } from './terrain';
+import { applySway } from './wind';
 
 const MODEL_URL = '/models/grass-pack.glb';
 
@@ -64,6 +66,63 @@ const SPREAD = [0.04, 0.30] as const;
 /** Tuft height, metres. Knee-high — anything shorter is invisible from
  *  standing height, which is the only place anyone looks at it from. */
 const HEIGHT = [0.4, 0.95] as const;
+
+/**
+ * How much of the pack's own tonal spread to keep, 0..1.
+ *
+ * The three source materials are a near-black, a mid green and a bright
+ * yellow-green — a range wide enough to look like three different plants, which
+ * next to the palms' fairly even canopy read as a different scene rather than
+ * a different species. Squeezing it toward the mean keeps the variation without
+ * the argument.
+ */
+const CONTRAST = 0.55;
+
+/**
+ * Retune the grass to the colour of the canopy above it.
+ *
+ * Two steps, and the order matters: pull the pack's internal contrast in toward
+ * its own mean FIRST, then shift that mean onto the reference. Doing it the
+ * other way round scales the outliers by the gain as well, and the bright tone
+ * ends up further out than it started.
+ *
+ * `reference` is measured from the palm frond texture (`palms.ts` → `canopy`),
+ * not chosen by eye, so the two plants agree by construction and keep agreeing
+ * if either model is ever swapped.
+ */
+function harmonise(soup: Soup, reference: Color): void {
+  const n = soup.color.length / 3;
+  if (!n) return;
+
+  let mr = 0;
+  let mg = 0;
+  let mb = 0;
+  for (let i = 0; i < soup.color.length; i += 3) {
+    mr += soup.color[i];
+    mg += soup.color[i + 1];
+    mb += soup.color[i + 2];
+  }
+  mr /= n;
+  mg /= n;
+  mb /= n;
+
+  // Aim a little brighter than the canopy: grass is underneath it and in the
+  // open, and matching exactly makes it read as being in the tree's shadow.
+  const target = reference.clone().multiplyScalar(1.25);
+  const gain = [
+    mr > 1e-4 ? target.r / mr : 1,
+    mg > 1e-4 ? target.g / mg : 1,
+    mb > 1e-4 ? target.b / mb : 1,
+  ];
+
+  const mean = [mr, mg, mb];
+  for (let i = 0; i < soup.color.length; i += 3) {
+    for (let k = 0; k < 3; k++) {
+      const pulled = mean[k] + (soup.color[i + k] - mean[k]) * CONTRAST;
+      soup.color[i + k] = Math.min(1, Math.max(0, pulled * gain[k]));
+    }
+  }
+}
 
 /** Positions, normals and colours, gathered across every material group. */
 interface Soup {
@@ -192,6 +251,8 @@ export class Grass {
       roughness: 0.88,
       metalness: 0,
     });
+    // Quicker and looser than a palm — a tuft has no trunk to resist with.
+    applySway(this.material, { amplitude: 0.34, speed: 1.9, flutter: 0.12 });
 
     const rng = makeRng(0x6a55);
     const dummy = new Object3D();
@@ -238,12 +299,20 @@ export class Grass {
     });
   }
 
-  /** Load the pack and grow grass at the foot of every palm in `roots`. */
-  static async plant(scene: Scene, roots: Root[]): Promise<Grass | null> {
+  /**
+   * Load the pack and grow grass at the foot of every palm in `roots`.
+   *
+   * `canopy` is the palms' measured average colour; pass it and the grass tunes
+   * itself to match. Without it the pack's own greens are used as-is, which do
+   * not agree with the trees.
+   */
+  static async plant(scene: Scene, roots: Root[], canopy?: Color | null): Promise<Grass | null> {
     if (!roots.length) return null;
     try {
       const gltf = await new GLTFLoader().loadAsync(MODEL_URL);
-      const clumps = toClumps(toSoup(gltf.scene));
+      const soup = toSoup(gltf.scene);
+      if (canopy) harmonise(soup, canopy);
+      const clumps = toClumps(soup);
       if (!clumps.length) {
         console.warn('[grass] model loaded but yielded no clumps');
         return null;

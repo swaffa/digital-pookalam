@@ -49,6 +49,7 @@ import { Lamp } from './lamp';
 import { Yard, KALAM_RADIUS } from './yard';
 import { Palms } from './palms';
 import { Grass } from './grass';
+import { Wind } from './wind';
 import { Director } from './camera';
 
 /** A build step. `run` may be async — the palms have 11 MB to fetch. */
@@ -74,6 +75,8 @@ export class World implements WorldAPI {
   private yard!: Yard;
   private palms: Palms | null = null;
   private grass: Grass | null = null;
+  /** One wind for the palms, the grass and both cloud decks. */
+  private readonly wind = new Wind();
 
   /** Latest pointer position in NDC, and whether it is worth raycasting. */
   private readonly pointer = new Vector2();
@@ -159,7 +162,11 @@ export class World implements WorldAPI {
           this.daylight.attachClouds(this.clouds);
           // The descent stirs the sky. Handed over rather than reached for, so
           // the camera never has to know what a cloud is.
-          this.director.attachWind((multiplier) => this.clouds.setWindBoost(multiplier));
+          // The descent stirs the sky. It pushes the shared wind, so the palms
+          // and grass lean into the same gust the clouds are running on.
+          this.director.attachWind((multiplier) => {
+            this.wind.boost = multiplier;
+          });
         },
       },
       {
@@ -189,7 +196,13 @@ export class World implements WorldAPI {
         run: async () => {
           // Grass grows at the palms' feet, so it has to know where they are —
           // hence after, and hence `roots`.
-          this.grass = await Grass.plant(this.scene, this.palms?.roots ?? []);
+          this.grass = await Grass.plant(
+            this.scene,
+            this.palms?.roots ?? [],
+            // Measured off the frond texture, so the grass matches the canopy
+            // rather than a hex value somebody picked.
+            this.palms?.canopy ?? null,
+          );
         },
       },
     ];
@@ -244,9 +257,11 @@ export class World implements WorldAPI {
     const dt = Math.min(this.clock.getDelta(), 0.1);
     const elapsed = this.clock.elapsedTime;
 
+    // Wind first: everything below reads this frame's gust from it.
+    this.wind.update(dt);
     this.director.update(dt);
     this.lamp.update(dt);
-    this.clouds.update(dt, this.camera.position.y);
+    this.clouds.update(dt, this.camera.position.y, this.wind.gust);
 
     // Hover is resolved once per frame, not once per pointer event — a mouse
     // fires far more often than the screen refreshes.
