@@ -1,148 +1,61 @@
-/**
- * ════════════════════════════════════════════════════════════════════════
- *  M5 · UI            owner: ____________    brief: docs/briefs/m5-ui.md
- * ════════════════════════════════════════════════════════════════════════
- *
- * Every pixel that is not the 3-D scene.
- *
- * What is here now is SCAFFOLDING: a loading veil, a time-of-day slider, and an
- * honest message when you tap the kalam and nothing happens yet. Expect to
- * delete most of it.
- *
- * What you actually own:
- *   · the design picker      — M1's catalogue, browsable, on a phone
- *   · the flower palette     — M3's list, and the flower currently in hand
- *   · undo / redo            — M2's, wired to something thumb-sized
- *   · who else is here       — M4's collaborator strokes, surfaced
- *   · the finish             — "our pookalam is done", and M6's share sheet
- *
- * One rule that is not negotiable: **the chrome must not cover the pookalam.**
- * It is in the middle of the screen and it is the whole point. Everything goes
- * to the edges — which is why the scaffolding below is three corners and a
- * veil, and nothing else.
- *
- * No framework. Not because frameworks are bad, but because this is a few
- * hundred lines of DOM next to a render loop that must not drop a frame, and a
- * reconciler in the middle is a cost with nothing to buy.
- * `docs/why-no-react.md` has the longer version if you want to argue — and you
- * may.
- */
-
 import type { UI, UIDeps } from '../../contracts';
 
 export function createUI(root: HTMLElement): UI {
-  /* ── the veil ───────────────────────────────────────────────────────────
-   * Up before the first frame, gone as the descent begins. Not decoration:
-   * without it the visitor watches an empty canvas for the ~250 ms the ground
-   * takes to build, and reads it as broken.
-   */
-  const veil = document.createElement('div');
-  veil.id = 'veil';
-  veil.innerHTML = `
-    <h1>ഡിജിറ്റൽ മുറ്റം</h1>
-    <div class="bar"><i></i></div>
-    <small>levelling the ground…</small>
-  `;
-  document.body.appendChild(veil);
-  const bar = veil.querySelector('i')!;
-  const caption = veil.querySelector('small')!;
-
-  /* ── the chrome ─────────────────────────────────────────────────────── */
-  const chrome = document.createElement('div');
-  chrome.id = 'world-ui';
-  chrome.innerHTML = `
-    <div id="sun" class="panel">
-      <label for="sun-slider">time of day</label>
-      <input id="sun-slider" type="range" min="0" max="100" value="44" />
-    </div>
-    <div id="say"></div>
-    <div id="hint">
-      drag to orbit · scroll to zoom · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> dawn / noon / dusk
-    </div>
-  `;
+  const veil = document.createElement('div'); veil.id = 'veil'; veil.innerHTML = `<div class="veil-flower">✿</div><h1>ഡിജിറ്റൽ പൂക്കളം</h1><div class="bar"><i></i></div><small>preparing your flower courtyard…</small>`; document.body.appendChild(veil);
+  const bar = veil.querySelector('i')!, caption = veil.querySelector('small')!;
+  const chrome = document.createElement('main'); chrome.id = 'world-ui';
+  chrome.innerHTML = `<header class="topbar"><div class="brand"><span>✿</span><div><strong>പൂക്കളം</strong><small>Digital Onam Flower Art</small></div></div><button class="help" aria-label="How to play">?</button></header>
+    <aside class="design-panel"><div class="panel-title"><span>1. Choose a design</span><button class="close-design" aria-label="Close designs">×</button></div><div class="design-grid"></div></aside>
+    <section class="flower-panel"><div class="step-label">2. Choose flowers</div><div class="flower-row"></div><p><span>✦</span> Tap a section yourself, or ask the guests to help</p><div class="actions"><button class="undo" title="Undo">↶</button><button class="redo" title="Redo">↷</button><button class="guest-help">Guests help</button><button class="finish">Finish പൂക്കളം</button></div></section>
+    <button class="design-toggle">⌘ Designs</button><div class="toast" role="status"></div><div class="finish-card" hidden><div>✿</div><h2>അടിപൊളി!</h2><p>Your pookalam is blooming beautifully.</p><button>Make another</button></div>`;
   root.appendChild(chrome);
-
-  const slider = chrome.querySelector<HTMLInputElement>('#sun-slider')!;
-  const say = chrome.querySelector<HTMLElement>('#say')!;
-
-  let sayTimer = 0;
-  /** A transient line near the bottom of the screen. The scaffold's only way
-   *  of telling you anything, and the first thing a real HUD replaces. */
-  const speak = (text: string) => {
-    say.textContent = text;
-    say.classList.add('on');
-    window.clearTimeout(sayTimer);
-    sayTimer = window.setTimeout(() => say.classList.remove('on'), 3000);
-  };
-
+  const toast = chrome.querySelector<HTMLElement>('.toast')!;
+  let toastTimer = 0;
+  const speak = (message: string) => { toast.textContent = message; toast.classList.add('show'); clearTimeout(toastTimer); toastTimer = window.setTimeout(() => toast.classList.remove('show'), 2400); };
   return {
     mount(deps: UIDeps) {
-      const { world, painter, flowers } = deps;
-
-      slider.value = String(Math.round(world.timeOfDay * 100));
-      slider.addEventListener('input', () => {
-        world.setTimeOfDay(Number(slider.value) / 100);
-      });
-
-      window.addEventListener('keydown', (event) => {
-        const preset = { '1': 0.06, '2': 0.5, '3': 0.95 }[event.key];
-        if (preset === undefined) return;
-        world.setTimeOfDay(preset);
-        slider.value = String(Math.round(preset * 100));
-      });
-
-      // Reveal the chrome only once the camera has landed. Buttons floating
-      // over a 620 m fall make the descent look like a loading screen with a
-      // toolbar on it.
+      const { world, painter, guides, flowers } = deps;
+      const designGrid = chrome.querySelector<HTMLElement>('.design-grid')!;
+      const flowerRow = chrome.querySelector<HTMLElement>('.flower-row')!;
+      let selectedFlower = flowers.fallback.id;
+      let helpingTimer = 0;
+      const drawThumb = (canvas: HTMLCanvasElement, guide: ReturnType<typeof guides.all>[number]) => { const ctx = canvas.getContext('2d')!; const size = canvas.width; ctx.fillStyle = '#4b321e'; ctx.fillRect(0, 0, size, size); guide.drawChalk(ctx, size); };
+      const renderDesigns = () => {
+        designGrid.innerHTML = '';
+        guides.all().forEach(guide => { const button = document.createElement('button'); button.className = `design ${painter.guide?.id === guide.id ? 'selected' : ''}`; button.innerHTML = `<canvas width="104" height="104"></canvas><span>${guide.malayalamName ?? guide.name}</span><small>${guide.name}</small>`; drawThumb(button.querySelector('canvas')!, guide);
+          button.addEventListener('click', () => { if (guide.id === painter.guide?.id) return; painter.load(guide); renderDesigns(); speak(`${guide.name} is ready — choose a flower and tap a section.`); chrome.classList.remove('picker-open'); }); designGrid.append(button); });
+      };
+      flowers.all().forEach(flower => { const button = document.createElement('button'); button.className = `flower ${flower.id === selectedFlower ? 'selected' : ''}`; button.dataset.id = flower.id; button.style.setProperty('--petal', flower.hex); button.innerHTML = `<span class="flower-icon">✿</span><small>${flower.malayalamName ?? flower.name}</small>`;
+        button.addEventListener('click', () => { selectedFlower = flower.id; flowerRow.querySelectorAll('.flower').forEach(el => el.classList.toggle('selected', (el as HTMLElement).dataset.id === flower.id)); speak(`${flower.name} is in your hand.`); }); flowerRow.append(button); });
+      renderDesigns();
+      world.setSurface(painter.texture);
       world.events.once('arrived', () => chrome.classList.add('on'));
-
-      // ── the seam that is waiting for M2 ───────────────────────────────
-      // A tap on the kalam already arrives here as a point on M2's canvas —
-      // the world raycast the disc and did the conversion. The moment
-      // `pickRegion` returns a region id instead of null, this becomes a
-      // working pookalam painter and nothing else has to change.
-      world.events.on('kalam:pick', (at) => {
-        const regionId = painter.pickRegion(at);
-        if (!regionId) {
-          speak(
-            `tapped (${at.u.toFixed(2)}, ${at.v.toFixed(2)}) — M2's pickRegion ` +
-              'returns null, so nothing fills yet',
-          );
-          return;
-        }
-        // TODO(M5): a real held flower, chosen from a palette, instead of
-        // whatever happens to be first in M3's catalogue.
-        painter.fill(regionId, flowers.all()[0]?.id ?? 'marigold');
+      world.events.on('kalam:pick', at => { const region = painter.pickRegion(at); if (!region) { speak('Pick a section inside the chalk outline.'); return; } painter.fill(region, selectedFlower); speak('A fresh flower bed is in bloom — colour each section your way.'); });
+      chrome.querySelector('.design-toggle')!.addEventListener('click', () => chrome.classList.toggle('picker-open'));
+      chrome.querySelector('.close-design')!.addEventListener('click', () => chrome.classList.remove('picker-open'));
+      chrome.querySelector('.undo')!.addEventListener('click', () => { painter.undo(); }); chrome.querySelector('.redo')!.addEventListener('click', () => { painter.redo(); });
+      chrome.querySelector('.guest-help')!.addEventListener('click', () => {
+        window.clearInterval(helpingTimer);
+        const flowerInHand = selectedFlower;
+        const help = () => {
+          const activeGuide = painter.guide;
+          if (!activeGuide) return;
+          const existing = painter.snapshot().fills;
+          // Maveli and the five animated guests lay flowers together. Captain
+          // America remains in his requested still guard position.
+          const next = activeGuide.regions.filter(region => !existing[region.id]).slice(0, 6);
+          if (!next.length) { window.clearInterval(helpingTimer); speak('The pookalam is complete!'); return; }
+          next.forEach(region => painter.fill(region.id, flowerInHand, { only: true }));
+        };
+        help();
+        helpingTimer = window.setInterval(help, 360);
+        speak('Maveli and the guests are laying the selected flowers.');
       });
-
-      // TODO(M5): everything else.
-      //   · the flower palette and a held flower — the most-used control in
-      //     the app, and the one that turns the tap handler above into the
-      //     core interaction
-      //   · the design picker: a strip of M1's guides, thumbnails drawn by
-      //     calling `drawChalk` onto a small canvas. Warn before switching; it
-      //     clears the fills, and on a shared kalam those are other people's.
-      //   · undo/redo, wired to painter.canUndo / canRedo
-      //   · who else is here, from store.onPaint. A group needs to see that
-      //     somebody just filled a petal, or two of them will fill the same one.
-      //   · the finish, and M6's share sheet
-      //   · mobile first. The canvas takes the whole screen and your chrome
-      //     sits on top of it; test with one thumb before you test with a mouse.
+      chrome.querySelector('.help')!.addEventListener('click', () => speak('Choose a pattern, choose a flower, then tap the matching chalk sections.')); 
+      const card = chrome.querySelector<HTMLElement>('.finish-card')!;
+      chrome.querySelector('.finish')!.addEventListener('click', () => { card.hidden = false; }); card.querySelector('button')!.addEventListener('click', () => { card.hidden = true; chrome.classList.add('picker-open'); });
     },
-
-    progress(fraction: number, label?: string) {
-      bar.style.width = `${Math.round(Math.min(1, Math.max(0, fraction)) * 100)}%`;
-      if (label) caption.textContent = `${label}…`;
-    },
-
-    veilDone() {
-      veil.classList.add('gone');
-      // Remove it rather than leaving a transparent full-screen div over the
-      // canvas — it would swallow every pointer event. Belt and braces on the
-      // timeout, because a backgrounded tab or reduced motion never fires the
-      // transition and a leftover veil eats the whole app.
-      veil.addEventListener('transitionend', () => veil.remove(), { once: true });
-      window.setTimeout(() => veil.remove(), 1400);
-    },
+    progress(fraction, label) { bar.style.width = `${Math.round(Math.min(1, Math.max(0, fraction)) * 100)}%`; if (label) caption.textContent = `${label}…`; },
+    veilDone() { veil.classList.add('gone'); veil.addEventListener('transitionend', () => veil.remove(), { once: true }); window.setTimeout(() => veil.remove(), 1200); },
   };
 }

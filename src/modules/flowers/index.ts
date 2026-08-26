@@ -75,6 +75,12 @@ const SEED: Flower[] = [
     hex: '#3f6b39',
     petal: { length: 0.055, width: 0.03, curl: 0.1 },
   },
+  { id: 'hibiscus', name: 'Hibiscus', malayalamName: 'ചെമ്പരത്തി', hex: '#e52f35', shadeHex: '#9f1730', petal: { length: 0.075, width: 0.065, curl: 0.32 } },
+  { id: 'kanakambaram', name: 'Crossandra', malayalamName: 'കനകാംബരം', hex: '#f27524', shadeHex: '#be3f1e', petal: { length: 0.05, width: 0.045, curl: 0.4 } },
+  { id: 'vaadamalli', name: 'Globe Amaranth', malayalamName: 'വാടാമല്ലി', hex: '#a947a5', shadeHex: '#662760', petal: { length: 0.04, width: 0.04, curl: 0.18 } },
+  { id: 'sunflower', name: 'Sunflower', malayalamName: 'സൂര്യകാന്തി', hex: '#ffd12e', shadeHex: '#e18b13', petal: { length: 0.08, width: 0.045, curl: 0.34 } },
+  { id: 'krishnakireedam', name: 'Butterfly Pea', malayalamName: 'ശംഖുപുഷ്പം', hex: '#5268cc', shadeHex: '#30357e', petal: { length: 0.055, width: 0.05, curl: 0.24 } },
+  { id: 'rose', name: 'Rose', malayalamName: 'റോസ്', hex: '#ec5f86', shadeHex: '#a72555', petal: { length: 0.06, width: 0.055, curl: 0.48 } },
 ];
 
 export const flowers: FlowerCatalogue = {

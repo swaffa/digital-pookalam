@@ -51,6 +51,8 @@ import { Palms } from './palms';
 import { Grass } from './grass';
 import { Wind } from './wind';
 import { Director } from './camera';
+import { Maveli } from './maveli';
+import { FestivalGuests } from './guests';
 
 /** A build step. `run` may be async — the palms have 11 MB to fetch. */
 type Stage = { at: number; label: string; run: () => void | Promise<void> };
@@ -75,6 +77,8 @@ export class World implements WorldAPI {
   private yard!: Yard;
   private palms: Palms | null = null;
   private grass: Grass | null = null;
+  private maveli: Maveli | null = null;
+  private guests: FestivalGuests | null = null;
   /** One wind for the palms, the grass and both cloud decks. */
   private readonly wind = new Wind();
 
@@ -191,6 +195,20 @@ export class World implements WorldAPI {
         },
       },
       {
+        at: 0.985,
+        label: 'welcoming Maveli',
+        run: async () => {
+          this.maveli = await Maveli.place(this.scene);
+        },
+      },
+      {
+        at: 0.995,
+        label: 'gathering the festival guests',
+        run: async () => {
+          this.guests = await FestivalGuests.arrive(this.scene);
+        },
+      },
+      {
         at: 1,
         label: 'seeding the grass',
         run: async () => {
@@ -261,6 +279,8 @@ export class World implements WorldAPI {
     this.wind.update(dt);
     this.director.update(dt);
     this.lamp.update(dt);
+    this.maveli?.update(dt);
+    this.guests?.update(dt);
     this.clouds.update(dt, this.camera.position.y, this.wind.gust);
 
     // Hover is resolved once per frame, not once per pointer event — a mouse
