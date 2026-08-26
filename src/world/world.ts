@@ -48,6 +48,7 @@ import { Clouds } from './clouds';
 import { Lamp } from './lamp';
 import { Yard, KALAM_RADIUS } from './yard';
 import { Palms } from './palms';
+import { Grass } from './grass';
 import { Director } from './camera';
 
 /** A build step. `run` may be async — the palms have 11 MB to fetch. */
@@ -72,6 +73,7 @@ export class World implements WorldAPI {
   private lamp!: Lamp;
   private yard!: Yard;
   private palms: Palms | null = null;
+  private grass: Grass | null = null;
 
   /** Latest pointer position in NDC, and whether it is worth raycasting. */
   private readonly pointer = new Vector2();
@@ -175,10 +177,19 @@ export class World implements WorldAPI {
         },
       },
       {
-        at: 1,
+        at: 0.97,
         label: 'growing the palms',
         run: async () => {
           this.palms = await palms;
+        },
+      },
+      {
+        at: 1,
+        label: 'seeding the grass',
+        run: async () => {
+          // Grass grows at the palms' feet, so it has to know where they are —
+          // hence after, and hence `roots`.
+          this.grass = await Grass.plant(this.scene, this.palms?.roots ?? []);
         },
       },
     ];
@@ -350,6 +361,7 @@ export class World implements WorldAPI {
     this.stop();
     window.removeEventListener('resize', this.onResize);
     this.director.dispose();
+    this.grass?.dispose();
     this.palms?.dispose();
     this.yard.dispose();
     this.lamp.dispose();

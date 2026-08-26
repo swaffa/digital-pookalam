@@ -1,0 +1,2 @@
+# The models are binary blobs; never try to diff or merge them.
+*.glb binary
