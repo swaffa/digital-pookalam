@@ -17,7 +17,7 @@ export class Maveli {
     // Vite exposes everything in `public/` from the site root.  Keep this
     // path in sync with the shipped asset so a missing development-only
     // source folder can never prevent the whole courtyard from opening.
-    const gltf = await new GLTFLoader().loadAsync('/maveli.glb');
+    const gltf = await new GLTFLoader().loadAsync('/models/maveli.glb');
     const model = gltf.scene;
     model.name = 'maveli';
 

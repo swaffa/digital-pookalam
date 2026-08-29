@@ -6,12 +6,12 @@ type Guest = { path: string; x: number; z: number; height: number; turn?: number
 // A wide ring keeps the flower art entirely paintable while making the
 // courtyard feel like a festive gathering. Every guest faces the pookalam.
 const GUESTS: Guest[] = [
-  { path: '/captain_america.glb', x: -7.0, z: -1.5, height: 2.65 },
-  { path: '/hulk_fan_art.glb', x: -4.25, z: -6.15, height: 3.9 },
-  { path: '/iron_man_mk7.glb', x: 0.8, z: -7.35, height: 2.7 },
-  { path: '/loki_magic_supremacy%20(1).glb', x: 5.15, z: -5.15, height: 2.8 },
-  { path: '/thor_textured_no_rig.glb', x: 7.05, z: -0.8, height: 2.9 },
-  { path: '/spiderman.glb', x: 6.15, z: 4.3, height: 2.55 },
+  { path: '/models/captain_america.glb', x: -7.0, z: -1.5, height: 2.65 },
+  { path: '/models/hulk_fan_art.glb', x: -4.25, z: -6.15, height: 3.9 },
+  { path: '/models/iron_man_mk7.glb', x: 0.8, z: -7.35, height: 2.7 },
+  { path: '/models/loki_magic_supremacy%20(1).glb', x: 5.15, z: -5.15, height: 2.8 },
+  { path: '/models/thor_textured_no_rig.glb', x: 7.05, z: -0.8, height: 2.9 },
+  { path: '/models/spiderman.glb', x: 6.15, z: 4.3, height: 2.55 },
 ];
 
 export class FestivalGuests {
